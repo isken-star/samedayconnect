@@ -260,6 +260,10 @@ export function QuoteResultsClient(props: QuoteResultsClientProps) {
               </span>
             </label>
           </div>
+          <p className="mt-4 text-sm text-[var(--text-muted)]">
+            After you choose a service, you will complete the booking details and pay securely online
+            to confirm the job.
+          </p>
         </div>
       </header>
 
@@ -268,7 +272,7 @@ export function QuoteResultsClient(props: QuoteResultsClientProps) {
           badge="Best value"
           title="Same Day Delivery"
           subtitle="Collected today, delivered today."
-          ctaLabel="Book Same Day"
+          ctaLabel="Continue with Same Day"
           variant="same_day"
           option={props.options.same_day}
           bookingInProgress={bookingType === "same_day"}
@@ -278,7 +282,7 @@ export function QuoteResultsClient(props: QuoteResultsClientProps) {
           badge="Fastest option"
           title="Direct Van Delivery — Fastest"
           subtitle="Straight from collection to delivery. No other stops."
-          ctaLabel="Book Direct (Fastest)"
+          ctaLabel="Continue with Direct"
           variant="direct"
           option={props.options.direct}
           bookingInProgress={bookingType === "direct"}

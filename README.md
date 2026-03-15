@@ -20,6 +20,9 @@ cp .env.example .env
 - `EMAIL_FROM`: sender email for auth emails.
 - `POSTMARK_SERVER_TOKEN`: required when `EMAIL_PROVIDER=postmark`.
 - `SENDGRID_API_KEY`: required when `EMAIL_PROVIDER=sendgrid`.
+- `STRIPE_SECRET_KEY`: required for hosted Stripe Checkout session creation.
+- `STRIPE_WEBHOOK_SECRET`: required to verify Stripe webhook events.
+- `STRIPE_PUBLISHABLE_KEY`: optional for future client-side Stripe work.
 - `UPSTASH_REDIS_REST_URL`: optional Redis rate-limit backend URL.
 - `UPSTASH_REDIS_REST_TOKEN`: optional Redis rate-limit backend token.
 
@@ -86,6 +89,24 @@ Includes:
 - Postmark adapter: `src/lib/email/postmarkProvider.ts`
 - SendGrid adapter: `src/lib/email/sendgridProvider.ts`
 
+## Stripe booking payments
+
+- Booking flow:
+  - quote result creates a `BookingDraft`
+  - `/booking` collects addresses, contacts, and customer details
+  - `/api/stripe/checkout` creates a hosted Stripe Checkout session for the full quoted amount
+  - `/api/stripe/webhook` marks payment as successful and creates the confirmed `Booking`
+- Local development webhook forwarding:
+
+```bash
+stripe listen --forward-to localhost:3000/api/stripe/webhook
+```
+
+- Copy the signing secret from the Stripe CLI output into `STRIPE_WEBHOOK_SECRET`.
+- Use a test secret key in `STRIPE_SECRET_KEY` for local development.
+- Checkout success returns to `/booking/success`.
+- Leaving Stripe without paying returns to `/booking?checkout=cancelled`.
+
 ## Theme and UI system
 
 - Theme context: `src/context/ThemeContext.tsx`
@@ -129,3 +150,22 @@ Current rollout note:
 - Courier dashboard auth stays on the main app host for now
 - Magic links use `APP_BASE_URL`
 - Session cookies remain host-only to avoid cross-subdomain auth complexity in the first rollout
+
+## Railway Stripe setup
+
+When deploying the payment flow on Railway:
+
+1. Add `STRIPE_SECRET_KEY` to the Railway service variables.
+2. Add `STRIPE_WEBHOOK_SECRET` to the same service after creating the Stripe webhook endpoint.
+3. Keep `APP_BASE_URL` set to your live app domain so Checkout success and cancel URLs point to the right place.
+4. In Stripe Dashboard, create a webhook endpoint for:
+   - `https://your-domain/api/stripe/webhook`
+5. Subscribe at minimum to:
+   - `checkout.session.completed`
+6. Redeploy after adding the env vars so the app can create Checkout sessions and verify webhooks.
+
+Recommended production checks:
+
+- Run a full test booking in Stripe test mode before switching to live keys.
+- Confirm the webhook creates one `Booking`, one successful `Payment`, and one linked `Job`.
+- Confirm cancelling out of Checkout returns the customer to the saved booking draft without losing details.

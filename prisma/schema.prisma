@@ -37,6 +37,36 @@ enum CourierJobStatus {
   COMPLETED
 }
 
+enum BookingDraftStatus {
+  DRAFT
+  CHECKOUT_CREATED
+  COMPLETED
+  CANCELLED
+}
+
+enum BookingStatus {
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+}
+
+enum BookingStopKind {
+  COLLECTION
+  DELIVERY
+}
+
+enum PaymentProvider {
+  STRIPE
+}
+
+enum PaymentStatus {
+  PENDING
+  CHECKOUT_CREATED
+  SUCCEEDED
+  FAILED
+  CANCELLED
+}
+
 model Courier {
   id                         String         @id @default(uuid())
   slug                       String         @unique
@@ -60,6 +90,7 @@ model Courier {
   magicLinkTokens            MagicLinkToken[]
   availability               CourierAvailability?
   jobs                       Job[]
+  bookings                   Booking[]
 
   @@index([isActive])
 }
@@ -76,6 +107,7 @@ model QuoteRequest {
   courier            Courier?      @relation(fields: [courierId], references: [id], onDelete: SetNull)
   quoteResults       QuoteResult[]
   bookingDrafts      BookingDraft[]
+  bookings           Booking[]
 
   @@index([courierId])
   @@index([createdAt])
@@ -103,15 +135,117 @@ model QuoteResult {
 }
 
 model BookingDraft {
-  id                  String       @id @default(uuid())
-  quoteRequestId      String
-  jobTypeChosen       JobType
-  communityShareOptIn Boolean
-  createdAt           DateTime     @default(now())
-  updatedAt           DateTime     @updatedAt
-  quoteRequest        QuoteRequest @relation(fields: [quoteRequestId], references: [id], onDelete: Cascade)
+  id                    String             @id @default(uuid())
+  quoteRequestId        String
+  jobTypeChosen         JobType
+  communityShareOptIn   Boolean
+  quotedTotal           Decimal            @db.Decimal(10, 2)
+  currency              String             @default("GBP")
+  customerName          String?
+  customerEmail         String?
+  customerPhone         String?
+  collectionAddressLine1 String?
+  collectionContactName String?
+  collectionContactPhone String?
+  notes                 String?
+  reference             String?
+  status                BookingDraftStatus @default(DRAFT)
+  checkoutStartedAt     DateTime?
+  completedAt           DateTime?
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+  quoteRequest          QuoteRequest       @relation(fields: [quoteRequestId], references: [id], onDelete: Cascade)
+  draftStops            BookingDraftStop[]
+  payments              Payment[]
+  booking               Booking?
 
   @@index([quoteRequestId])
+  @@index([status])
+}
+
+model BookingDraftStop {
+  id            String          @id @default(uuid())
+  bookingDraftId String
+  sequence      Int
+  kind          BookingStopKind
+  postcode      String
+  addressLine1  String?
+  contactName   String?
+  contactPhone  String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  bookingDraft  BookingDraft    @relation(fields: [bookingDraftId], references: [id], onDelete: Cascade)
+
+  @@unique([bookingDraftId, sequence])
+  @@index([bookingDraftId, kind])
+}
+
+model Booking {
+  id                  String        @id @default(uuid())
+  bookingDraftId      String        @unique
+  quoteRequestId      String
+  courierId           String?
+  jobTypeChosen       JobType
+  status              BookingStatus @default(CONFIRMED)
+  communityShareOptIn Boolean
+  quotedTotal         Decimal       @db.Decimal(10, 2)
+  currency            String        @default("GBP")
+  customerName        String
+  customerEmail       String
+  customerPhone       String?
+  notes               String?
+  reference           String?
+  paidAt              DateTime?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+  bookingDraft        BookingDraft  @relation(fields: [bookingDraftId], references: [id], onDelete: Cascade)
+  quoteRequest        QuoteRequest  @relation(fields: [quoteRequestId], references: [id], onDelete: Cascade)
+  courier             Courier?      @relation(fields: [courierId], references: [id], onDelete: SetNull)
+  stops               BookingStop[]
+  payments            Payment[]
+  job                 Job?
+
+  @@index([quoteRequestId])
+  @@index([courierId])
+  @@index([status])
+}
+
+model BookingStop {
+  id           String          @id @default(uuid())
+  bookingId    String
+  sequence     Int
+  kind         BookingStopKind
+  postcode     String
+  addressLine1 String
+  contactName  String
+  contactPhone String
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  booking      Booking         @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@unique([bookingId, sequence])
+  @@index([bookingId, kind])
+}
+
+model Payment {
+  id                     String          @id @default(uuid())
+  bookingDraftId         String
+  bookingId              String?
+  provider               PaymentProvider
+  status                 PaymentStatus   @default(PENDING)
+  amount                 Decimal         @db.Decimal(10, 2)
+  currency               String          @default("GBP")
+  stripeCheckoutSessionId String?        @unique
+  stripePaymentIntentId  String?         @unique
+  paidAt                 DateTime?
+  createdAt              DateTime        @default(now())
+  updatedAt              DateTime        @updatedAt
+  bookingDraft           BookingDraft    @relation(fields: [bookingDraftId], references: [id], onDelete: Cascade)
+  booking                Booking?        @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+
+  @@index([bookingDraftId])
+  @@index([bookingId])
+  @@index([status])
 }
 
 model JoinApplication {
@@ -167,6 +301,7 @@ model CourierAvailability {
 
 model Job {
   id                 String           @id @default(uuid())
+  bookingId          String?          @unique
   courierId          String
   status             CourierJobStatus @default(PENDING)
   collectionPostcode String
@@ -178,6 +313,7 @@ model Job {
   createdAt          DateTime         @default(now())
   acceptedAt         DateTime?
   completedAt        DateTime?
+  booking            Booking?         @relation(fields: [bookingId], references: [id], onDelete: SetNull)
   courier            Courier          @relation(fields: [courierId], references: [id], onDelete: Cascade)
 
   @@index([courierId, status])

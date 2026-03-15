@@ -1,7 +1,11 @@
-import { JobType } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import {
+  getSelectedQuoteResult,
+  parsePrismaDecimal,
+  toPrismaJobType,
+} from "@/src/lib/booking/helpers";
 import { db } from "@/src/lib/db";
 
 const bookingDraftSchema = z.object({
@@ -9,10 +13,6 @@ const bookingDraftSchema = z.object({
   jobTypeChosen: z.enum(["same_day", "direct"]),
   communityShareOptIn: z.boolean(),
 });
-
-function toPrismaJobType(jobType: "same_day" | "direct"): JobType {
-  return jobType === "same_day" ? JobType.SAME_DAY : JobType.DIRECT;
-}
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
@@ -30,18 +30,35 @@ export async function POST(request: Request) {
 
   const quoteRequest = await db.quoteRequest.findUnique({
     where: { id: parsed.data.quoteRequestId },
-    select: { id: true },
+    include: {
+      quoteResults: true,
+    },
   });
 
   if (!quoteRequest) {
     return NextResponse.json({ error: "Quote request not found." }, { status: 404 });
   }
 
+  const jobTypeChosen = toPrismaJobType(parsed.data.jobTypeChosen);
+  const selectedQuote = getSelectedQuoteResult(quoteRequest.quoteResults, jobTypeChosen);
+
+  if (!selectedQuote) {
+    return NextResponse.json({ error: "Quote option not found." }, { status: 404 });
+  }
+
   const bookingDraft = await db.bookingDraft.create({
     data: {
-      quoteRequestId: parsed.data.quoteRequestId,
-      jobTypeChosen: toPrismaJobType(parsed.data.jobTypeChosen),
+      quoteRequestId: quoteRequest.id,
+      jobTypeChosen,
       communityShareOptIn: parsed.data.communityShareOptIn,
+      quotedTotal: parsePrismaDecimal(selectedQuote.total),
+      draftStops: {
+        create: quoteRequest.deliveryPostcodes.map((postcode, index) => ({
+          sequence: index + 1,
+          kind: "DELIVERY",
+          postcode,
+        })),
+      },
     },
   });
 
