@@ -1,0 +1,6 @@
+<svg width="240" height="240" viewBox="0 0 240 240" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="240" height="240" rx="24" fill="#F3E8FF"/>
+  <circle cx="120" cy="92" r="34" fill="#C084FC"/>
+  <path d="M52 200C57 161 84 140 120 140C156 140 183 161 188 200" fill="#A855F7"/>
+  <text x="120" y="222" text-anchor="middle" font-family="Arial, sans-serif" font-size="16" fill="#5B21B6">Courier</text>
+</svg>

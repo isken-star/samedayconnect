@@ -1,0 +1,11 @@
+<svg width="640" height="360" viewBox="0 0 640 360" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="640" height="360" rx="24" fill="#EFF6FF"/>
+  <rect x="112" y="150" width="320" height="92" rx="10" fill="#60A5FA"/>
+  <rect x="432" y="170" width="96" height="72" rx="10" fill="#3B82F6"/>
+  <rect x="458" y="182" width="56" height="24" rx="6" fill="#BFDBFE"/>
+  <circle cx="188" cy="252" r="26" fill="#111827"/>
+  <circle cx="464" cy="252" r="26" fill="#111827"/>
+  <circle cx="188" cy="252" r="11" fill="#E5E7EB"/>
+  <circle cx="464" cy="252" r="11" fill="#E5E7EB"/>
+  <text x="320" y="66" text-anchor="middle" font-family="Arial, sans-serif" font-size="28" fill="#1E3A8A">Courier Van</text>
+</svg>

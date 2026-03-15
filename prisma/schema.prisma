@@ -1,0 +1,186 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum VanType {
+  SMALL
+  MEDIUM
+  LARGE
+}
+
+enum JobType {
+  SAME_DAY
+  DIRECT
+}
+
+enum ReadyMode {
+  READY_NOW
+  PREBOOK
+}
+
+enum CourierAvailabilityStatus {
+  AVAILABLE
+  BUSY
+  OFF
+}
+
+enum CourierJobStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  EXPIRED
+  COMPLETED
+}
+
+model Courier {
+  id                         String         @id @default(uuid())
+  slug                       String         @unique
+  businessName               String
+  displayName                String
+  bio                        String
+  phone                      String?
+  email                      String?        @unique
+  baseArea                   String
+  vanType                    VanType
+  vanPayloadKg               Int
+  insuranceGoodsInTransit    Boolean
+  insurancePublicLiability   Boolean
+  profilePhotoUrl            String?
+  vanPhotoUrl                String?
+  isActive                   Boolean        @default(true)
+  createdAt                  DateTime       @default(now())
+  updatedAt                  DateTime       @updatedAt
+  quoteRequests              QuoteRequest[]
+  sessions                   CourierSession[]
+  magicLinkTokens            MagicLinkToken[]
+  availability               CourierAvailability?
+  jobs                       Job[]
+
+  @@index([isActive])
+}
+
+model QuoteRequest {
+  id                 String        @id @default(uuid())
+  courierId          String?
+  collectionPostcode String
+  deliveryPostcodes  String[]
+  readyMode          ReadyMode
+  collectionDateTime DateTime?
+  selectedVanType    VanType
+  createdAt          DateTime      @default(now())
+  courier            Courier?      @relation(fields: [courierId], references: [id], onDelete: SetNull)
+  quoteResults       QuoteResult[]
+  bookingDrafts      BookingDraft[]
+
+  @@index([courierId])
+  @@index([createdAt])
+}
+
+model QuoteResult {
+  id               String       @id @default(uuid())
+  quoteRequestId   String
+  jobType          JobType
+  miles            Float
+  perMileRate      Decimal      @db.Decimal(10, 2)
+  distanceCharge   Decimal      @db.Decimal(10, 2)
+  minimumCharge    Decimal      @db.Decimal(10, 2)
+  minimumApplied   Boolean
+  extraStopsCount  Int
+  stopsFee         Decimal      @db.Decimal(10, 2)
+  congestionApplied Boolean
+  congestionFee    Decimal      @db.Decimal(10, 2)
+  total            Decimal      @db.Decimal(10, 2)
+  createdAt        DateTime     @default(now())
+  quoteRequest     QuoteRequest @relation(fields: [quoteRequestId], references: [id], onDelete: Cascade)
+
+  @@index([quoteRequestId])
+  @@index([jobType])
+}
+
+model BookingDraft {
+  id                  String       @id @default(uuid())
+  quoteRequestId      String
+  jobTypeChosen       JobType
+  communityShareOptIn Boolean
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+  quoteRequest        QuoteRequest @relation(fields: [quoteRequestId], references: [id], onDelete: Cascade)
+
+  @@index([quoteRequestId])
+}
+
+model JoinApplication {
+  id                 String   @id @default(uuid())
+  fullName           String
+  businessName       String
+  email              String
+  phone              String
+  areasCovered       String
+  vanType            VanType
+  insuranceConfirmed Boolean
+  message            String?
+  createdAt          DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+model CourierSession {
+  id               String   @id @default(uuid())
+  courierId        String
+  sessionTokenHash String   @unique
+  expiresAt        DateTime
+  createdAt        DateTime @default(now())
+  lastUsedAt       DateTime @default(now())
+  courier          Courier  @relation(fields: [courierId], references: [id], onDelete: Cascade)
+
+  @@index([courierId])
+  @@index([expiresAt])
+}
+
+model MagicLinkToken {
+  id        String   @id @default(uuid())
+  courierId String
+  tokenHash String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+  requestIp String?
+  courier   Courier  @relation(fields: [courierId], references: [id], onDelete: Cascade)
+
+  @@index([courierId])
+  @@index([expiresAt])
+  @@index([usedAt])
+}
+
+model CourierAvailability {
+  courierId  String                    @id
+  status     CourierAvailabilityStatus @default(AVAILABLE)
+  busyUntil  DateTime?
+  updatedAt  DateTime                  @updatedAt
+  courier    Courier                   @relation(fields: [courierId], references: [id], onDelete: Cascade)
+}
+
+model Job {
+  id                 String           @id @default(uuid())
+  courierId          String
+  status             CourierJobStatus @default(PENDING)
+  collectionPostcode String
+  deliveryPostcodes  String[]
+  vanType            VanType
+  jobType            JobType
+  readyAt            DateTime?
+  quotedTotal        Decimal          @db.Decimal(10, 2)
+  createdAt          DateTime         @default(now())
+  acceptedAt         DateTime?
+  completedAt        DateTime?
+  courier            Courier          @relation(fields: [courierId], references: [id], onDelete: Cascade)
+
+  @@index([courierId, status])
+  @@index([createdAt])
+  @@index([readyAt])
+}
