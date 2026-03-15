@@ -5,7 +5,7 @@ import { z } from "zod";
 import { getDistanceProvider } from "@/src/lib/distance";
 import { db } from "@/src/lib/db";
 import { normalizeAndValidatePostcodes } from "@/src/lib/postcode/uk";
-import { calculateQuote } from "@/src/lib/pricing/calc";
+import { calculateQuote, calculateRunningMilesFee, metersToMiles } from "@/src/lib/pricing/calc";
 import { isStopInCongestionZone } from "@/src/lib/zones/ccz";
 
 const MAX_DELIVERIES = 10;
@@ -88,6 +88,37 @@ async function geocodeStops(postcodes: string[]) {
   return geocoded;
 }
 
+async function getRunningMilesFee(input: {
+  provider: ReturnType<typeof getDistanceProvider>;
+  basePostcode: string | null | undefined;
+  collectionPostcode: string;
+}) {
+  if (!input.basePostcode?.trim()) {
+    return 0;
+  }
+
+  const normalizedBase = normalizeAndValidatePostcodes([input.basePostcode]);
+  if (normalizedBase.errors.length > 0) {
+    return 0;
+  }
+
+  try {
+    const runningRoute = await input.provider.getRouteDistance([
+      normalizedBase.normalized[0],
+      input.collectionPostcode,
+    ]);
+
+    if (!Number.isFinite(runningRoute.totalMeters) || runningRoute.totalMeters <= 0) {
+      return 0;
+    }
+
+    return calculateRunningMilesFee(metersToMiles(runningRoute.totalMeters));
+  } catch {
+    // Hidden surcharge lookup should never block the main quote response.
+    return 0;
+  }
+}
+
 export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => null);
@@ -140,48 +171,80 @@ export async function POST(request: Request) {
     const stopsWithCoordinates = await geocodeStops(orderedStops);
     const congestionApplied = stopsWithCoordinates.some((stop) => isStopInCongestionZone(stop));
 
-    const sameDay = calculateQuote({
-      meters: totalMeters,
-      deliveriesCount: deliveryPostcodes.length,
-      vanSize: parsed.data.van_size,
-      jobType: "same_day",
-      congestionApplied,
-    });
-
-    const direct = calculateQuote({
-      meters: totalMeters,
-      deliveriesCount: deliveryPostcodes.length,
-      vanSize: parsed.data.van_size,
-      jobType: "direct",
-      congestionApplied,
-    });
-
     const collectionDateTime = buildCollectionDateTime(
       parsed.data.collection_date,
       parsed.data.ready_time,
     );
 
     const saved = await db.$transaction(async (tx) => {
-      const hostCourier = hostCourierSlug
+      const explicitCourier = parsed.data.courier_id
         ? await tx.courier.findFirst({
             where: {
-              slug: hostCourierSlug,
+              id: parsed.data.courier_id,
               isActive: true,
             },
-            select: { id: true },
+            select: {
+              id: true,
+              basePostcode: true,
+            },
           })
         : null;
 
-      const defaultCourier = parsed.data.courier_id
+      const hostCourier = explicitCourier
         ? null
-        : await tx.courier.findFirst({
-            where: { isActive: true },
-            select: { id: true },
-          });
+        : hostCourierSlug
+          ? await tx.courier.findFirst({
+              where: {
+                slug: hostCourierSlug,
+                isActive: true,
+              },
+              select: {
+                id: true,
+                basePostcode: true,
+              },
+            })
+          : null;
+
+      const defaultCourier =
+        explicitCourier || hostCourier
+          ? null
+          : await tx.courier.findFirst({
+              where: { isActive: true },
+              orderBy: { createdAt: "asc" },
+              select: {
+                id: true,
+                basePostcode: true,
+              },
+            });
+
+      const selectedCourier = explicitCourier ?? hostCourier ?? defaultCourier;
+      const runningMilesFee = await getRunningMilesFee({
+        provider,
+        basePostcode: selectedCourier?.basePostcode,
+        collectionPostcode,
+      });
+
+      const sameDay = calculateQuote({
+        meters: totalMeters,
+        deliveriesCount: deliveryPostcodes.length,
+        vanSize: parsed.data.van_size,
+        jobType: "same_day",
+        congestionApplied,
+        hiddenSurchargeFee: runningMilesFee,
+      });
+
+      const direct = calculateQuote({
+        meters: totalMeters,
+        deliveriesCount: deliveryPostcodes.length,
+        vanSize: parsed.data.van_size,
+        jobType: "direct",
+        congestionApplied,
+        hiddenSurchargeFee: runningMilesFee,
+      });
 
       const quoteRequest = await tx.quoteRequest.create({
         data: {
-          courierId: parsed.data.courier_id ?? hostCourier?.id ?? defaultCourier?.id,
+          courierId: selectedCourier?.id,
           collectionPostcode,
           deliveryPostcodes,
           readyMode: toPrismaReadyMode(parsed.data.ready_mode),
@@ -196,6 +259,7 @@ export async function POST(request: Request) {
             quoteRequestId: quoteRequest.id,
             jobType: JobType.SAME_DAY,
             miles: sameDay.milesRaw,
+            runningMilesFee,
             perMileRate: sameDay.perMileRate,
             distanceCharge: sameDay.distanceCharge,
             minimumCharge: sameDay.minimumCharge,
@@ -210,6 +274,7 @@ export async function POST(request: Request) {
             quoteRequestId: quoteRequest.id,
             jobType: JobType.DIRECT,
             miles: direct.milesRaw,
+            runningMilesFee,
             perMileRate: direct.perMileRate,
             distanceCharge: direct.distanceCharge,
             minimumCharge: direct.minimumCharge,
@@ -223,11 +288,15 @@ export async function POST(request: Request) {
         ],
       });
 
-      return quoteRequest;
+      return {
+        quoteRequest,
+        sameDay,
+        direct,
+      };
     });
 
     return NextResponse.json({
-      quoteRequestId: saved.id,
+      quoteRequestId: saved.quoteRequest.id,
       collectionPostcode,
       deliveryPostcodes,
       selectedVanSize: parsed.data.van_size,
@@ -235,8 +304,8 @@ export async function POST(request: Request) {
       readyMode: parsed.data.ready_mode,
       collectionDateTime: collectionDateTime?.toISOString() ?? null,
       options: {
-        same_day: sameDay,
-        direct,
+        same_day: saved.sameDay,
+        direct: saved.direct,
       },
     });
   } catch (error) {

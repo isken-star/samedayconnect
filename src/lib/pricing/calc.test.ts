@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { calculateQuote, calculateStopsFee, metersToMiles } from "./calc";
+import {
+  calculateQuote,
+  calculateRunningMilesFee,
+  calculateStopsFee,
+  metersToMiles,
+} from "./calc";
 
 describe("pricing calculator", () => {
   it("applies minimum when distance charge is lower", () => {
@@ -53,5 +58,28 @@ describe("pricing calculator", () => {
 
     expect(quote.distanceCharge).toBe(23.01);
     expect(quote.total).toBe(80);
+  });
+
+  it("charges running miles after the first 30 miles", () => {
+    expect(calculateRunningMilesFee(30)).toBe(0);
+    expect(calculateRunningMilesFee(39)).toBe(10);
+    expect(calculateRunningMilesFee(40)).toBe(10);
+    expect(calculateRunningMilesFee(41)).toBe(20);
+    expect(calculateRunningMilesFee(55)).toBe(30);
+  });
+
+  it("adds hidden surcharge into the final total only", () => {
+    const quote = calculateQuote({
+      meters: 10000,
+      deliveriesCount: 1,
+      vanSize: "small",
+      jobType: "same_day",
+      congestionApplied: false,
+      hiddenSurchargeFee: 20,
+    });
+
+    expect(quote.distanceCharge).toBe(10.56);
+    expect(quote.baseCharge).toBe(40);
+    expect(quote.total).toBe(60);
   });
 });

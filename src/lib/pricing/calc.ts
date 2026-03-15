@@ -8,6 +8,7 @@ export interface CalculateQuoteInput {
   vanSize: VanSize;
   jobType: QuoteJobType;
   congestionApplied: boolean;
+  hiddenSurchargeFee?: number;
 }
 
 export interface QuoteBreakdown {
@@ -48,6 +49,17 @@ export function calculateStopsFee(extraStopsCount: number): number {
   return firstTierCount * firstTierPrice + remainingCount * additionalStopPrice;
 }
 
+export function calculateRunningMilesFee(routeMiles: number): number {
+  const { freeMiles, startedBlockMiles, chargePerBlock } = PRICING_CONFIG.runningMiles;
+  const extraMiles = Math.max(0, routeMiles - freeMiles);
+
+  if (extraMiles <= 0) {
+    return 0;
+  }
+
+  return Math.ceil(extraMiles / startedBlockMiles) * chargePerBlock;
+}
+
 export function calculateQuote(input: CalculateQuoteInput): QuoteBreakdown {
   const milesRaw = metersToMiles(input.meters);
   const perMileRate = PRICING_CONFIG.perMileRates[input.jobType][input.vanSize];
@@ -58,7 +70,8 @@ export function calculateQuote(input: CalculateQuoteInput): QuoteBreakdown {
   const extraStopsCount = Math.max(0, input.deliveriesCount - 1);
   const stopsFeeRaw = calculateStopsFee(extraStopsCount);
   const congestionFeeRaw = input.congestionApplied ? PRICING_CONFIG.congestionCharge.fee : 0;
-  const totalRaw = baseChargeRaw + stopsFeeRaw + congestionFeeRaw;
+  const hiddenSurchargeFeeRaw = input.hiddenSurchargeFee ?? 0;
+  const totalRaw = baseChargeRaw + stopsFeeRaw + congestionFeeRaw + hiddenSurchargeFeeRaw;
 
   return {
     milesRaw,

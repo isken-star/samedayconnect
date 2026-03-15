@@ -6,6 +6,11 @@ type PriceTable = Record<VanSize, number>;
 export interface PricingConfig {
   perMileRates: Record<QuoteJobType, PriceTable>;
   minimumCharges: Record<QuoteJobType, PriceTable>;
+  runningMiles: {
+    freeMiles: number;
+    startedBlockMiles: number;
+    chargePerBlock: number;
+  };
   stopFees: {
     firstTierStops: number;
     firstTierPrice: number;
@@ -47,6 +52,11 @@ export const PRICING_CONFIG: PricingConfig = {
       medium: 65,
       large: 80,
     },
+  },
+  runningMiles: {
+    freeMiles: 30,
+    startedBlockMiles: 10,
+    chargePerBlock: 10,
   },
   stopFees: {
     firstTierStops: 3,
