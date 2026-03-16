@@ -1,4 +1,9 @@
-import type { EmailProvider, SendMagicLinkInput } from "./provider";
+import type {
+  EmailProvider,
+  SendJoinApplicationNotificationInput,
+  SendMagicLinkInput,
+} from "./provider";
+import { formatJoinApplicationNotificationText } from "./provider";
 
 export class SendGridEmailProvider implements EmailProvider {
   constructor(
@@ -21,6 +26,34 @@ export class SendGridEmailProvider implements EmailProvider {
           {
             type: "text/plain",
             value: `Use this secure sign-in link:\n\n${input.signInUrl}\n\nThis link expires in 15 minutes and can only be used once.`,
+          },
+        ],
+      }),
+    });
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => "");
+      throw new Error(`SendGrid send failed (${response.status}): ${body}`);
+    }
+  }
+
+  async sendJoinApplicationNotification(
+    input: SendJoinApplicationNotificationInput,
+  ): Promise<void> {
+    const response = await fetch("https://api.sendgrid.com/v3/mail/send", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${this.apiKey}`,
+      },
+      body: JSON.stringify({
+        from: { email: this.fromEmail },
+        personalizations: [{ to: [{ email: input.toEmail }] }],
+        subject: `New join application from ${input.fullName}`,
+        content: [
+          {
+            type: "text/plain",
+            value: formatJoinApplicationNotificationText(input),
           },
         ],
       }),

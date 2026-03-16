@@ -88,6 +88,8 @@ Includes:
 - Provider resolver: `src/lib/email/index.ts`
 - Postmark adapter: `src/lib/email/postmarkProvider.ts`
 - SendGrid adapter: `src/lib/email/sendgridProvider.ts`
+- Join application notifications are sent to `info@samedayconnect.co.uk`
+- In local development, the console provider prints both magic-link emails and join-application notifications to the server output
 
 ## Stripe booking payments
 
