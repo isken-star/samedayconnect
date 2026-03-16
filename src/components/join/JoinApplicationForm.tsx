@@ -106,9 +106,15 @@ export function JoinApplicationForm() {
 
   if (submitted) {
     return (
-      <section className="glass-card rounded-2xl p-6 sm:p-8" aria-live="polite">
-        <h3 className="text-2xl font-semibold">Application received</h3>
-        <p className="mt-2 text-[var(--text-subtle)]">
+      <section
+        className="rounded-2xl border border-[var(--success-border)] bg-[var(--success-bg)] p-6 sm:p-8"
+        aria-live="polite"
+      >
+        <p className="text-sm font-semibold uppercase tracking-[0.14em] text-[var(--success-text)]">
+          Application sent
+        </p>
+        <h3 className="mt-3 text-2xl font-semibold text-[var(--text-main)]">Application received</h3>
+        <p className="mt-2 text-[var(--success-text)]">
           Thank you for applying to join Same Day Connect. Your application has been sent
           successfully and we will be in touch within 48 hours.
         </p>
