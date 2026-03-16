@@ -109,7 +109,8 @@ export function JoinApplicationForm() {
       <section className="glass-card rounded-2xl p-6 sm:p-8" aria-live="polite">
         <h3 className="text-2xl font-semibold">Application received</h3>
         <p className="mt-2 text-[var(--text-subtle)]">
-          Thanks — we’ll be in touch within business hours.
+          Thank you for applying to join Same Day Connect. Your application has been sent
+          successfully and we will be in touch within 48 hours.
         </p>
       </section>
     );
