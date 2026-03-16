@@ -162,8 +162,11 @@ describe("POST /api/quote", () => {
     );
   });
 
-  it("falls back to the normal quote when the courier has no base postcode", async () => {
+  it("falls back to the default base postcode when the courier has no base postcode", async () => {
     mockCourierFindFirst.mockResolvedValue({ id: "courier-1", basePostcode: null });
+    mockGetRouteDistance
+      .mockResolvedValueOnce({ totalMeters: 10000 })
+      .mockResolvedValueOnce({ totalMeters: 55 * 1609.344 });
 
     const { POST } = await import("./route");
     const request = new Request("http://localhost/api/quote", {
@@ -182,8 +185,8 @@ describe("POST /api/quote", () => {
     const json = (await response.json()) as { options: { same_day: { total: number }; direct: { total: number } } };
 
     expect(response.status).toBe(200);
-    expect(json.options.same_day.total).toBe(40);
-    expect(json.options.direct.total).toBe(50);
-    expect(mockGetRouteDistance).toHaveBeenCalledTimes(1);
+    expect(json.options.same_day.total).toBe(70);
+    expect(json.options.direct.total).toBe(80);
+    expect(mockGetRouteDistance).toHaveBeenCalledTimes(2);
   });
 });

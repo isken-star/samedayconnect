@@ -1,7 +1,7 @@
 import type { QuoteJobType, VanSize } from "@/src/lib/pricing/config";
 import type { ReadyMode } from "@/src/lib/quote/types";
 
-const STORAGE_KEY = "cc_recent_quotes_v1";
+const STORAGE_KEY = "cc_recent_quotes_v2";
 const MAX_RECENT_QUOTES = 10;
 
 export interface RecentQuoteItem {

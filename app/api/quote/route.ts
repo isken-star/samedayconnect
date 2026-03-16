@@ -11,6 +11,7 @@ import { isStopInCongestionZone } from "@/src/lib/zones/ccz";
 const MAX_DELIVERIES = 10;
 const ROUTE_FAILURE_MESSAGE =
   "We couldn’t calculate a route for those postcodes. Please check and try again.";
+const DEFAULT_RUNNING_MILES_BASE_POSTCODE = "TQ2 7PH";
 
 export const quoteInputSchema = z
   .object({
@@ -93,11 +94,9 @@ async function getRunningMilesFee(input: {
   basePostcode: string | null | undefined;
   collectionPostcode: string;
 }) {
-  if (!input.basePostcode?.trim()) {
-    return 0;
-  }
-
-  const normalizedBase = normalizeAndValidatePostcodes([input.basePostcode]);
+  const rawBasePostcode =
+    input.basePostcode?.trim() || process.env.DEFAULT_BASE_POSTCODE?.trim() || DEFAULT_RUNNING_MILES_BASE_POSTCODE;
+  const normalizedBase = normalizeAndValidatePostcodes([rawBasePostcode]);
   if (normalizedBase.errors.length > 0) {
     return 0;
   }
